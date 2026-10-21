@@ -110,6 +110,28 @@ button { cursor: pointer; }
 }
 .pill.done { color: #d8efca; border-color: rgba(153, 201, 126, .5); }
 
+.quest-go {
+  position: absolute; left: 50%; bottom: calc(var(--safe-bottom) + 148px);
+  transform: translateX(-50%); z-index: 25;
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+  min-height: 44px; padding: 9px 18px; border-radius: 999px;
+  border: 1px solid rgba(241, 215, 154, .72);
+  background: linear-gradient(135deg, rgba(76, 58, 29, .96), rgba(28, 38, 40, .96));
+  color: #f1d79a; font-family: var(--serif); font-size: 12px; letter-spacing: .08em;
+  white-space: nowrap; pointer-events: auto; touch-action: manipulation;
+  box-shadow: 0 0 26px rgba(201, 168, 106, .3), 0 8px 22px rgba(0, 0, 0, .35);
+  animation: questGoPulse 1.8s ease-in-out infinite;
+}
+.quest-go b { color: rgba(241, 215, 154, .6); font-weight: 400; }
+.quest-go i { font-style: normal; font-size: 18px; line-height: 1; color: #ffe9b5; }
+.quest-go:active { transform: translateX(-50%) scale(.96); }
+@keyframes questGoPulse {
+  0%, 100% { border-color: rgba(241, 215, 154, .5); box-shadow: 0 0 18px rgba(201, 168, 106, .2), 0 8px 22px rgba(0, 0, 0, .35); }
+  50% { border-color: rgba(255, 231, 171, .95); box-shadow: 0 0 38px rgba(241, 215, 154, .5), 0 8px 22px rgba(0, 0, 0, .35); }
+}
+#hud.dialogue-open .quest-go, #hud.cinema .quest-go { display: none; }
+#hud.quest-ready #rotate-hint { display: none; }
+
 #scene-title {
   position: absolute; top: calc(var(--safe-top) + 118px); left: 50%; transform: translateX(-50%);
   font-family: var(--serif); font-size: clamp(22px, 6vw, 36px); letter-spacing: .3em;
@@ -754,6 +776,7 @@ button { cursor: pointer; }
   #action-btn .act-ico { font-size: 20px; }
   #action-btn .act-text { font-size: 10.5px; }
   #rotate-hint { bottom: calc(var(--safe-bottom) + 130px); font-size: 9px; padding: 5px 10px; }
+  .quest-go { bottom: calc(var(--safe-bottom) + 132px); min-height: 42px; padding: 8px 14px; font-size: 11px; max-width: calc(100% - 24px); }
   #dialogue { left: 7px; right: 7px; bottom: calc(var(--safe-bottom) + 7px); border-radius: 22px; padding: 16px 15px 11px; }
   #dlg-name { font-size: 17px; }
   #dlg-text { font-size: 15px; line-height: 1.95; }
@@ -805,6 +828,7 @@ a[href*="netlify.com"] { display: none !important; visibility: hidden !important
     </header>
 
     <div id="progress" class="pill">日章线索 0/28</div>
+    <button id="quest-go" class="quest-go hidden" type="button">线索已集齐 <b>·</b> 前往寒日祭广场 <i>›</i></button>
     <div id="scene-title"><span></span></div>
 
     <div id="hotspot-layer"></div>
@@ -53986,6 +54010,11 @@ Object.assign(window.THREE={},{ACESFilmicToneMapping:ACESFilmicToneMapping,AddEq
   const Y = window.Y = window.Y || {};
 
   const NICK = '（玩家昵称）';
+  Y.META = {
+    hours: '8~9',
+    promptWords: '25200',
+    updated: '2026.10.21'
+  };
   const line = (speaker, text, extra = {}) => Object.assign({
     speaker, text, type: 'normal', condition: { chapter: 'any', seen: false }, countsAsClue: false
   }, extra);
@@ -56714,7 +56743,7 @@ Object.assign(window.THREE={},{ACESFilmicToneMapping:ACESFilmicToneMapping,AddEq
     fade: $('#fade'), title: $('#title-screen'), loading: $('#loading'),
     nickname: $('#nickname'), start: $('#start-btn'), music: $('#music-btn'), musicIco: $('#music-ico'),
     mapBtn: $('#map-btn'), ledgerBtn: $('#ledger-btn'), rotateHint: $('#rotate-hint'),
-    menuBtn: $('#menu-btn')
+    questGo: $('#quest-go'), menuBtn: $('#menu-btn')
   };
 
   const DEFAULT_FLAGS = () => ({
@@ -57179,6 +57208,7 @@ Object.assign(window.THREE={},{ACESFilmicToneMapping:ACESFilmicToneMapping,AddEq
     ui.ledgerBtn.onclick = openLedger;
     ui.mapBtn.onclick = tryOpenMap;
     ui.menuBtn.onclick = showMainMenu;
+    ui.questGo.onclick = () => { if (G.goToSquare) G.goToSquare(); };
     ui.quality.onclick = () => {
       qualityMode = qualityMode === 'smooth' ? 'clear' : 'smooth';
       postAllowed = true;
@@ -57387,6 +57417,18 @@ Object.assign(window.THREE={},{ACESFilmicToneMapping:ACESFilmicToneMapping,AddEq
     });
   }
 
+  async function goToSquare() {
+    if (G.busy || G.dialogueActive || G.modalOpen) return;
+    const ready = (state.chapter === 'day' && state.flags.dayDone) ||
+      (state.chapter === 'night' && state.flags.nightDone);
+    if (!ready || G.currentScene === 'square') return;
+    ui.questGo.classList.add('hidden');
+    ui.hud.classList.remove('quest-ready');
+    if (G.mode === 'map') { mapTravel('square'); return; }
+    await enterScene('square', { force: true });
+  }
+  G.goToSquare = goToSquare;
+
   function mapTravel(id) {
     if (G.mapTraveling || G.busy || !G.map) return;
     const target = G.map.points[id];
@@ -57563,6 +57605,10 @@ Object.assign(window.THREE={},{ACESFilmicToneMapping:ACESFilmicToneMapping,AddEq
     ui.clueTotal.textContent = `${have}/${total}`;
     ui.ledgerBtn.classList.toggle('warn', have >= total);
     ui.menuBtn.classList.toggle('hidden', G.mode !== 'map');
+    const questReady = (G.mode === 'scene' || G.mode === 'map') && G.currentScene !== 'square' &&
+      ((state.chapter === 'day' && state.flags.dayDone) || (state.chapter === 'night' && state.flags.nightDone));
+    ui.hud.classList.toggle('quest-ready', questReady);
+    ui.questGo.classList.toggle('hidden', !questReady);
 
     if (G.mode === 'map' || !G.currentScene || G.currentScene === 'map') {
       ui.progress.textContent = `线索 ${have}/${total}`;
@@ -58977,7 +59023,7 @@ Object.assign(window.THREE={},{ACESFilmicToneMapping:ACESFilmicToneMapping,AddEq
     await wait(400);
     await line('制 作 不 易', 'big', 2200);
     await wait(600);
-    await line('本作历时 5~6 小时<br>累计撰写提示词 24086 字（含修改意见）', '', 3200);
+    await line(`本作历时 ${Y.META.hours} 小时<br>累计撰写提示词 ${Y.META.promptWords} 字（含修改意见）<br>最后更新 ${Y.META.updated}`, '', 3600);
     await wait(700);
     await line('感谢你走完羊不哭村的日与夜', '', 3300);
     await wait(800);
